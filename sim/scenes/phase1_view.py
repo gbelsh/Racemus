@@ -11,7 +11,7 @@ Run: D:\\source\\Racemus\\.venv\\Scripts\\python.exe sim\\scenes\\phase1_step1_p
 
 from isaacsim import SimulationApp
 
-sim_app = SimulationApp({"headless": True})
+sim_app = SimulationApp({"headless": False})
 
 import math
 import os
@@ -27,6 +27,9 @@ import turret_config as cfg
 from isaacsim.core.api import World
 from isaacsim.core.prims import SingleArticulation
 from isaacsim.core.utils.types import ArticulationAction
+
+import omni.replicator.core as rep
+import PIL.Image
 
 out_dir = os.path.join(os.path.dirname(__file__), "_output")
 os.makedirs(out_dir, exist_ok=True)
@@ -54,7 +57,17 @@ UsdPhysics.Scene.Define(stage, "/physicsScene")
 dome = UsdLux.DomeLight.Define(stage, "/World/SkyDome")
 dome.CreateIntensityAttr(1000.0)
 dome.CreateColorAttr(Gf.Vec3f(0.35, 0.55, 0.90))
-write_status("built sky dome")
+log("built sky dome")
+
+# --- Camera -------------------------------------------------------------------
+camera = rep.create.camera(
+    position=(2.5, -2.0, 1.5),  # Where the eye sits.
+    look_at=(0.0, 0.20, 0.35),  # Point at which the camera aims (turrets middle)
+)
+
+render_product = rep.create.render_product(camera, (1280, 720))
+rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb")
+rgb_annotator.attach(render_product)
 
 
 # --- The turret as an articulation ---------------------------------------------------------
@@ -137,7 +150,7 @@ tilt_drive.CreateTargetPositionAttr(0.0)
 
 # --- Simulate ------------------------------------------------------------------------------
 world.reset()  # initialize physics + the articulation
-2
+
 # Wrap the articulation so we can command/read joints from Python.
 art = SingleArticulation("/World/Turret")
 art.initialize()
@@ -157,9 +170,25 @@ for _ in range(180):
     world.step(render=False)
 
 reached = art.get_joint_positions()
+log(f"DEBUG reached: type={type(reached)}  value={reached}")   # <-- temporary probe
 log(f"dof_names: {art.dof_names}")
 log(f"reached pan={math.degrees(reached[0]):.2f}, "
     f"tilt={math.degrees(reached[1]):.2f}")
+
+arr_rgbA = np.zeros((0,))
+for _ in range(20):
+    rep.orchestrator.step()
+
+    arr_rgbA = np.asarray(rgb_annotator.get_data())
+    if arr_rgbA.size > 0 and arr_rgbA.ndim == 3 and arr_rgbA.shape[2] >= 3:
+        log(f"Frame Shape: {arr_rgbA.shape}")
+        rgb_pill = PIL.Image.fromarray(arr_rgbA[:, :, :3])
+        rgb_pill.save(os.path.join(out_dir, "phase1_view.png"))
+        break
+else:
+    log(f"RGB CAPTURE FAILED: 20 steps")
+
+
 
 log("done; closing app")
 

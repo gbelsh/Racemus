@@ -147,7 +147,7 @@ log(f"commanded pan->{pan_target_deg}, tilt->{tilt_target_deg}")
 for _ in range(180):
     world.step(render=False)
 
-reached = art.get_joint_positions()
+reached = art.get_joint_positions
 log(f"dof_names: {art.dof_names}")
 log(f"reached pan={math.degrees(reached[0]):.2f}, "
     f"tilt={math.degrees(reached[1]):.2f}")
